@@ -20,6 +20,7 @@
 
 /* This code displays the computed SpO2 value through the Serial port*/
 
+#include "credentials.h"
 
 #include <OneWire.h>
 #include <DallasTemperature.h>
@@ -41,20 +42,16 @@ DallasTemperature sensors(&oneWire);
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, NTP_ADDRESS, NTP_OFFSET, NTP_INTERVAL);
 
-// WiFi network info.
-char ssid[] = "Casper";
-char wifiPassword[] = "abbaabbaff.";
 
-// Cayenne authentication info. This should be obtained from the Cayenne Dashboard.
-char username[] = "dbeef360-a5c5-11e7-bba6-6918eb39b85e";
-char password[] = "4bf5c884c749da17023a9156a1b514beef743dbe";
-char clientID[] = "a33c2ae0-1c0e-11e9-a08c-c5a286f8c00d";
+
 unsigned long lastMillis = 0;
 
+///////////////////////////// OLED display instantiaion /////////////////////////
 #include <Wire.h>
 #include "SSD1306.h"
 SSD1306 display(0x3c, 16, 17); 
 
+//////////////////////////// RTC connectivity ////////////////////////////
 // CONNECTIONS:
 // DS1302 CLK/SCLK --> 5
 // DS1302 DAT/IO --> 4
@@ -67,12 +64,13 @@ SSD1306 display(0x3c, 16, 17);
 ThreeWire myWire(25,33,32); // IO, SCLK, CE
 RtcDS1302<ThreeWire> Rtc(myWire);
 
+//////////////////////////// SD card instantiation ////////////////////////////
 #include <string.h>
 #include <SPI.h>
 #include <math.h>
 #include <mySD.h>
 
-//afe44xx Register definition
+////////////////////////// afe44xx Register definition
 #define CONTROL0    0x00
 #define LED2STC     0x01
 #define LED2ENDC    0x02
@@ -240,7 +238,7 @@ display.display();
 
 
 
-  
+  ///////////////////////////////////////////////// SD card init //////////////////////////////////////
 
   Serial.print("Initializing SD card...");
   /* initialize SD library with SPI pins */
@@ -286,7 +284,7 @@ display.display();
   }
 
   
-
+////////////////////////////////////////////////////////// AFE init /////////////////////////////////////
    
    Serial.println("Intilazition AFE44xx.. ");   
    
@@ -328,7 +326,7 @@ display.display();
    afe44xxInit (); 
    Serial.println("intilazition is done");
 }
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////// LOOP
 
 void loop()
 {    
@@ -372,27 +370,23 @@ void loop()
         if(n_spo2 == -999)
         {
           Serial.println("Probe error!!!!");
+
+ //////////////////////////////////////////////////// OLED update with time only ///////////////////////////////////         
           display.clear();
           timeClient.update();
           display.setFont(ArialMT_Plain_16);
           String formattedTime = timeClient.getFormattedTime();
           display.drawString(0, 0, formattedTime);
           display.display();
-
+//////////////////////////////////////////////////// Cayenne service //////////////////////////////////////////////
           Cayenne.loop();
         }
         else
         {  
-
+/////////////////////////////////////////////////////////////// display results /////////////////////////////////////
            sensors.requestTemperatures();
            
-            Serial.print("calculating sp02...");
-            Serial.print(" Sp02 : ");
-            Serial.print(n_spo2);
-            Serial.print("% ,"); 
-            Serial.print("Pulse rate :");
-            Serial.print(n_heart_rate);                       
-            Serial.println(" bpm");
+
 
         display.clear();
         display.setFont(ArialMT_Plain_16);
@@ -401,27 +395,38 @@ void loop()
           timeClient.update();
           String formattedTime = timeClient.getFormattedTime();
           display.drawString(0, 0, formattedTime);
-         // display.display();
-
-        Cayenne.virtualWrite(0, n_spo2);
-        Cayenne.virtualWrite(1, n_heart_rate);
-        
-       display.setFont(ArialMT_Plain_16);
-    Cayenne.celsiusWrite(2, sensors.getTempCByIndex(0));
-    Cayenne.celsiusWrite(3, sensors.getTempCByIndex(1));
-    Cayenne.celsiusWrite(4, sensors.getTempCByIndex(2));
-
-      Serial.print("tem0: ");Serial.println(sensors.getTempCByIndex(0));
-      Serial.print("tem1: ");Serial.println(sensors.getTempCByIndex(1));
-      Serial.print("tem2: ");Serial.println(sensors.getTempCByIndex(2));
-      
-    display.setFont(ArialMT_Plain_10);
+          display.setFont(ArialMT_Plain_10);
     display.drawString(0,48, ( String(sensors.getTempCByIndex(0)) + "C" ));
     display.drawString(50,48,( String(sensors.getTempCByIndex(1)) + "C" ));
     display.drawString(96,48,( String(sensors.getTempCByIndex(2)) + "C" ));
     display.display();
+
+///////////////////////////////////////////////////////// write results  to Cayenne ///////////////////////////////
+        Cayenne.virtualWrite(0, n_spo2);
+        Cayenne.virtualWrite(1, n_heart_rate);
+        
+    Cayenne.celsiusWrite(2, sensors.getTempCByIndex(0));
+    Cayenne.celsiusWrite(3, sensors.getTempCByIndex(1));
+    Cayenne.celsiusWrite(4, sensors.getTempCByIndex(2));
+/////////////////// print resutls on serial port
+
+            Serial.print("calculating sp02...");
+            Serial.print(" Sp02 : ");
+            Serial.print(n_spo2);
+            Serial.print("% ,"); 
+            Serial.print("Pulse rate :");
+            Serial.print(n_heart_rate);                       
+            Serial.println(" bpm");
+            
+      Serial.print("tem0: ");Serial.println(sensors.getTempCByIndex(0));
+      Serial.print("tem1: ");Serial.println(sensors.getTempCByIndex(1));
+      Serial.print("tem2: ");Serial.println(sensors.getTempCByIndex(2));
+      
+
       
         Cayenne.loop();
+
+        //////////////////////////////////////// write resutls to SD card //////////////////////////////
 
  root = SD.open("results.txt", FILE_WRITE);
   /* if open succesfully -> root != NULL 
